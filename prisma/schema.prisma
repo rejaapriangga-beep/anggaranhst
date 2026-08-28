@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  password     String
+  role         Role      @default(VIEWER)
+  lastActiveAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String
+  userName   String
+  userEmail  String
+  action     AuditAction
+  entity     String   // "Pos Anggaran" | "Sub-Kegiatan" | "Realisasi Bulanan" | "User"
+  label      String   // deskripsi singkat objek yang diubah, contoh: "RAPAT DAN AKOMODASI - Agustus 2026"
+  detail     String?  // ringkasan perubahan (opsional, teks bebas)
+  createdAt  DateTime @default(now())
+}
+
+// Pos Anggaran, contoh: "Belanja Pegawai", "Pengembangan SDM", dst
+model BudgetCategory {
+  id         String           @id @default(cuid())
+  code       String?
+  name       String
+  year       Int
+  activities BudgetActivity[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([name, year])
+}
+
+// Sub-kegiatan / proyek di bawah satu kategori
+model BudgetActivity {
+  id          String                @id @default(cuid())
+  name        String
+  pic         String?
+  totalPagu   Decimal               @db.Decimal(18, 2)
+  categoryId  String
+  category    BudgetCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  entries     BudgetMonthlyEntry[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+}
+
+enum EntryStatus {
+  ON_PROGRESS
+  DONE
+}
+
+// Alokasi & realisasi per bulan untuk satu sub-kegiatan
+model BudgetMonthlyEntry {
+  id          String         @id @default(cuid())
+  activityId  String
+  activity    BudgetActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  month       Int            // 1-12
+  year        Int
+  paguBulan   Decimal        @db.Decimal(18, 2) // alokasi/pagu bulan itu (manual, bisa tidak rata)
+  komitmen    Decimal        @default(0) @db.Decimal(18, 2) // nilai PO terbit, belum settle/dibayar
+  realisasi   Decimal        @default(0) @db.Decimal(18, 2) // sudah benar-benar dibayar (actual)
+  status      EntryStatus    @default(ON_PROGRESS)
+  note        String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([activityId, month, year])
+}
