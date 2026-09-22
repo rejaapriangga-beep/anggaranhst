@@ -217,6 +217,16 @@ function EntriesPageInner() {
   // tahun yang dipilih — kalau tidak, Pos Anggaran tahun lain akan ikut tampil bercampur.
   const categoriesForYear = useMemo(() => categories.filter((cat) => cat.year === year), [categories, year]);
 
+  // Termasuk beberapa tahun ke depan yang belum ada Pos Anggaran-nya sama sekali,
+  // supaya tetap bisa dipilih waktu mulai input realisasi tahun anggaran baru.
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = new Set<number>(categories.map((c) => c.year));
+    for (let y = currentYear - 1; y <= currentYear + 3; y++) years.add(y);
+    years.add(year);
+    return Array.from(years).sort((a, b) => b - a);
+  }, [categories, year]);
+
   const allUnits = useMemo(() => {
     const set = new Set<string>();
     categoriesForYear.forEach((cat) => cat.activities.forEach((a: any) => { if (a.pic) set.add(a.pic); }));
@@ -265,7 +275,9 @@ function EntriesPageInner() {
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Tahun</label>
-            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 w-24" />
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white">
+              {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
           </div>
         </div>
       </div>
