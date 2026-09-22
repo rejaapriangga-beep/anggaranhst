@@ -22,6 +22,16 @@ export default function CategoriesPage() {
     return categories.filter((c) => c.year === filterYear);
   }, [categories, filterYear]);
 
+  // Termasuk beberapa tahun ke depan yang belum ada datanya sama sekali, supaya
+  // tetap bisa dipilih waktu bikin Pos Anggaran untuk tahun anggaran baru.
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = new Set<number>(availableYears);
+    for (let y = currentYear - 1; y <= currentYear + 3; y++) years.add(y);
+    years.add(year);
+    return Array.from(years).sort((a, b) => b - a);
+  }, [availableYears, year]);
+
   async function load() {
     const res = await fetch("/api/categories");
     setCategories(await res.json());
@@ -149,7 +159,9 @@ export default function CategoriesPage() {
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Tahun</label>
-            <input required type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800" />
+            <select required value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white">
+              {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
             <button type="button" onClick={closeModal} className="text-sm text-slate-500 px-3 py-2">Batal</button>
