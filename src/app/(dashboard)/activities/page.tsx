@@ -24,6 +24,12 @@ export default function ActivitiesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [filterYear, setFilterYear] = useState<number | "">(new Date().getFullYear());
+
+  const availableYears = useMemo(() => {
+    const years = new Set(categories.map((c) => c.year));
+    return Array.from(years).sort((a, b) => b - a);
+  }, [categories]);
 
   async function load() {
     const [aRes, cRes] = await Promise.all([
@@ -103,8 +109,9 @@ export default function ActivitiesPage() {
   }
 
   const grouped = useMemo(() => {
+    const filtered = filterYear === "" ? activities : activities.filter((act) => act.category?.year === filterYear);
     const map = new Map<string, { category: any; items: any[] }>();
-    activities.forEach((act) => {
+    filtered.forEach((act) => {
       const catId = act.categoryId || "tanpa-kategori";
       if (!map.has(catId)) {
         map.set(catId, { category: act.category, items: [] });
@@ -114,7 +121,7 @@ export default function ActivitiesPage() {
     return Array.from(map.values())
       .map((g) => ({ ...g, items: g.items.sort((a, b) => a.name.localeCompare(b.name)) }))
       .sort((a, b) => (a.category?.name || "").localeCompare(b.category?.name || ""));
-  }, [activities]);
+  }, [activities, filterYear]);
 
   function expandAll() {
     setExpandedIds(new Set(grouped.map((g) => g.category?.id).filter(Boolean)));
@@ -127,7 +134,18 @@ export default function ActivitiesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-800">Sub-Kegiatan / Proyek</h1>
-        <div className="space-x-2">
+        <div className="flex items-end gap-2">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Filter Tahun</label>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value === "" ? "" : Number(e.target.value))}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white"
+            >
+              <option value="">Semua Tahun</option>
+              {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
           <button onClick={expandAll} className="text-sm bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl px-3 py-2 shadow-sm">Buka Semua</button>
           <button onClick={collapseAll} className="text-sm bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl px-3 py-2 shadow-sm">Tutup Semua</button>
           <button onClick={openAdd} className="bg-[#6C5CE7] hover:bg-[#5842d6] text-white text-sm font-medium rounded-xl px-4 py-2">
@@ -159,7 +177,8 @@ export default function ActivitiesPage() {
                     {expanded ? "−" : "+"}
                   </span>
                   {g.category?.name || "Tanpa Kategori"}
-                  <span className="text-xs font-normal text-slate-400">({g.items.length} sub-kegiatan)</span>
+                  {g.category?.year && <span className="text-xs font-normal text-slate-400">({g.category.year})</span>}
+                  <span className="text-xs font-normal text-slate-400">· {g.items.length} sub-kegiatan</span>
                 </span>
                 <span className="text-xs text-slate-500">
                   Total Pagu: <span className="font-medium text-slate-700">{rupiah(totalPaguGroup)}</span>
@@ -196,7 +215,7 @@ export default function ActivitiesPage() {
         })}
         {grouped.length === 0 && (
           <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-slate-400">
-            Belum ada sub-kegiatan.
+            Belum ada sub-kegiatan{filterYear !== "" ? ` untuk tahun ${filterYear}` : ""}.
           </div>
         )}
       </div>

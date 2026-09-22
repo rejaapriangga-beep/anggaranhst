@@ -213,15 +213,19 @@ function EntriesPageInner() {
     });
   }
 
+  // Pos Anggaran dibuat per-tahun (BudgetCategory.year), jadi harus difilter sesuai
+  // tahun yang dipilih — kalau tidak, Pos Anggaran tahun lain akan ikut tampil bercampur.
+  const categoriesForYear = useMemo(() => categories.filter((cat) => cat.year === year), [categories, year]);
+
   const allUnits = useMemo(() => {
     const set = new Set<string>();
-    categories.forEach((cat) => cat.activities.forEach((a: any) => { if (a.pic) set.add(a.pic); }));
+    categoriesForYear.forEach((cat) => cat.activities.forEach((a: any) => { if (a.pic) set.add(a.pic); }));
     return Array.from(set).sort();
-  }, [categories]);
+  }, [categoriesForYear]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, { pagu: number; realisasi: number; done: number; total: number }> = {};
-    categories.forEach((cat) => {
+    categoriesForYear.forEach((cat) => {
       let pagu = 0, realisasi = 0, done = 0;
       cat.activities.forEach((act: any) => {
         pagu += Number(act.totalPagu);
@@ -234,7 +238,7 @@ function EntriesPageInner() {
       map[cat.id] = { pagu, realisasi, done, total: cat.activities.length };
     });
     return map;
-  }, [categories, rowState]);
+  }, [categoriesForYear, rowState]);
 
   return (
     <div className="space-y-6">
@@ -270,7 +274,7 @@ function EntriesPageInner() {
         <p className="text-sm text-slate-500">Memuat data...</p>
       ) : (
         <div className="space-y-4">
-          {categories.map((cat) => {
+          {categoriesForYear.map((cat) => {
             const expanded = expandedIds.has(cat.id);
             const summary = categorySummary[cat.id] || { pagu: 0, realisasi: 0, done: 0, total: 0 };
             const summaryPct = summary.pagu > 0 ? (summary.realisasi / summary.pagu) * 100 : 0;
@@ -414,9 +418,9 @@ function EntriesPageInner() {
               </div>
             );
           })}
-          {categories.length === 0 && (
+          {categoriesForYear.length === 0 && (
             <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-slate-400">
-              Belum ada Pos Anggaran. Tambahkan dulu di halaman Pos Anggaran.
+              Belum ada Pos Anggaran untuk tahun {year}. Tambahkan dulu di halaman Pos Anggaran.
             </div>
           )}
         </div>

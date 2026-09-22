@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 
 export default function CategoriesPage() {
@@ -10,6 +10,17 @@ export default function CategoriesPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [filterYear, setFilterYear] = useState<number | "">(new Date().getFullYear());
+
+  const availableYears = useMemo(() => {
+    const years = new Set(categories.map((c) => c.year));
+    return Array.from(years).sort((a, b) => b - a);
+  }, [categories]);
+
+  const visibleCategories = useMemo(() => {
+    if (filterYear === "") return categories;
+    return categories.filter((c) => c.year === filterYear);
+  }, [categories, filterYear]);
 
   async function load() {
     const res = await fetch("/api/categories");
@@ -75,11 +86,24 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-xl font-semibold text-slate-800">Pos Anggaran</h1>
-        <button onClick={openAdd} className="bg-[#6C5CE7] hover:bg-[#5842d6] text-white text-sm font-medium rounded-xl px-4 py-2">
-          + Tambah Pos Anggaran
-        </button>
+        <div className="flex items-end gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Filter Tahun</label>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value === "" ? "" : Number(e.target.value))}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white"
+            >
+              <option value="">Semua Tahun</option>
+              {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <button onClick={openAdd} className="bg-[#6C5CE7] hover:bg-[#5842d6] text-white text-sm font-medium rounded-xl px-4 py-2">
+            + Tambah Pos Anggaran
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -94,7 +118,7 @@ export default function CategoriesPage() {
             </tr>
           </thead>
           <tbody>
-            {categories.map((cat) => (
+            {visibleCategories.map((cat) => (
               <tr key={cat.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 text-slate-500">{cat.code || "-"}</td>
                 <td className="px-4 py-3 font-medium text-slate-800">{cat.name}</td>
@@ -106,8 +130,8 @@ export default function CategoriesPage() {
                 </td>
               </tr>
             ))}
-            {categories.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Belum ada pos anggaran.</td></tr>
+            {visibleCategories.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Belum ada pos anggaran{filterYear !== "" ? ` untuk tahun ${filterYear}` : ""}.</td></tr>
             )}
           </tbody>
         </table>
