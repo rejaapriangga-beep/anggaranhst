@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const rupiah = (n: number) =>
@@ -10,20 +10,33 @@ const rupiahFull = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 
 export default function ReportsPage() {
-  const [categories, setCategories] = useState<any[]>([]);
-  const [year] = useState(new Date().getFullYear());
+  const [allCategories, setAllCategories] = useState<any[]>([]);
+  const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetch(`/api/categories?year=${year}`)
+    fetch(`/api/categories`)
       .then((r) => r.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : [];
-        setCategories(list);
-        setExpandedIds(new Set()); // default semua collapse
+        setAllCategories(list);
         setLoading(false);
       });
+  }, []);
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>(allCategories.map((c) => c.year));
+    years.add(year);
+    return Array.from(years).sort((a, b) => b - a);
+  }, [allCategories, year]);
+
+  // Pos Anggaran dibuat per-tahun, jadi laporan harus difilter sesuai tahun yang
+  // dipilih — kalau tidak, data dari tahun-tahun lain akan ikut tercampur.
+  const categories = useMemo(() => allCategories.filter((c) => c.year === year), [allCategories, year]);
+
+  useEffect(() => {
+    setExpandedIds(new Set()); // default semua collapse tiap ganti tahun
   }, [year]);
 
   function toggleExpand(id: string) {
@@ -147,12 +160,22 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Laporan Penyerapan Anggaran</h1>
           <p className="text-sm text-slate-500">Tahun {year} · Sub Division of Talent Management (HST)</p>
         </div>
-        <div className="space-x-2">
+        <div className="flex items-end gap-2">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Tahun</label>
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white"
+            >
+              {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
           <button onClick={exportExcel} className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-2 shadow-sm">Export Excel</button>
           <button onClick={exportPdf} className="text-sm bg-red-600 hover:bg-red-700 text-white rounded-xl px-3 py-2 shadow-sm">Export PDF</button>
         </div>
@@ -204,7 +227,7 @@ export default function ReportsPage() {
                   <RowGroup key={cat.id} cat={cat} rupiah={rupiah} expanded={expandedIds.has(cat.id)} onToggle={() => toggleExpand(cat.id)} year={year} />
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Belum ada data pos anggaran.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Belum ada data pos anggaran untuk tahun {year}.</td></tr>
                 )}
               </tbody>
               {rows.length > 0 && (
