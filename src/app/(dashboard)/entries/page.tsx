@@ -183,7 +183,7 @@ function EntriesPageInner() {
     if (!row || !row.dirty || row.saving) return;
     setRowState((prev) => ({ ...prev, [activityId]: { ...prev[activityId], saving: true } }));
 
-    await fetch("/api/entries/yearly", {
+    const res = await fetch("/api/entries/yearly", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -196,6 +196,13 @@ function EntriesPageInner() {
         note: row.note,
       }),
     });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Gagal menyimpan. Perubahan Anda TIDAK tersimpan.");
+      setRowState((prev) => ({ ...prev, [activityId]: { ...prev[activityId], saving: false } }));
+      return;
+    }
 
     setRowState((prev) => ({
       ...prev,
