@@ -2,16 +2,10 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { formatThousands, stripThousands } from "@/lib/format";
 
 const rupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
-
-const formatThousands = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "";
-  return new Intl.NumberFormat("id-ID").format(Number(digits));
-};
-const stripThousands = (value: string) => value.replace(/\D/g, "");
 
 type RowState = {
   hasEntry: boolean;
