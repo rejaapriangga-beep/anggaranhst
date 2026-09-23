@@ -56,15 +56,16 @@ model BudgetCategory {
 
 // Sub-kegiatan / proyek di bawah satu kategori
 model BudgetActivity {
-  id          String                @id @default(cuid())
-  name        String
-  pic         String?
-  totalPagu   Decimal               @db.Decimal(18, 2)
-  categoryId  String
-  category    BudgetCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  entries     BudgetMonthlyEntry[]
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  id           String                @id @default(cuid())
+  name         String
+  pic          String?
+  totalPagu    Decimal               @db.Decimal(18, 2)
+  categoryId   String
+  category     BudgetCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  entries      BudgetMonthlyEntry[]
+  transactions Transaction[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
 }
 
 enum EntryStatus {
@@ -88,4 +89,22 @@ model BudgetMonthlyEntry {
   updatedAt   DateTime       @updatedAt
 
   @@unique([activityId, month, year])
+}
+
+// Rincian transaksi realisasi per Sub-Kegiatan per tahun. Nilai boleh negatif
+// (koreksi/retur). Jumlah seluruh transaksi untuk activityId+year yang sama
+// otomatis disinkronkan ke BudgetMonthlyEntry.realisasi setiap kali ada
+// transaksi ditambah/diubah/dihapus.
+model Transaction {
+  id          String         @id @default(cuid())
+  activityId  String
+  activity    BudgetActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  year        Int
+  date        DateTime
+  description String
+  amount      Decimal        @db.Decimal(18, 2)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([activityId, year])
 }

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatThousands, stripThousands } from "@/lib/format";
+import Modal from "@/components/Modal";
 
 const rupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
@@ -28,36 +29,6 @@ const emptyRow = (): RowState => ({
   dirty: false,
   saving: false,
 });
-
-// onCommit dipanggil saat field kehilangan fokus (blur) atau saat Enter ditekan —
-// dua-duanya memicu auto-save baris ini, jadi tidak perlu tombol/kolom Simpan lagi.
-function NumberInput({
-  value,
-  onChange,
-  onCommit,
-}: {
-  value: string;
-  onChange: (raw: string) => void;
-  onCommit: () => void;
-}) {
-  return (
-    <input
-      type="text"
-      inputMode="numeric"
-      value={formatThousands(value)}
-      onChange={(e) => onChange(stripThousands(e.target.value))}
-      onBlur={onCommit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          e.currentTarget.blur();
-        }
-      }}
-      className="w-full min-w-0 rounded-lg border border-slate-300 px-1.5 py-1.5 text-xs text-slate-800 text-center"
-      placeholder="0"
-    />
-  );
-}
 
 function MiniPctBadge({ pct }: { pct: number }) {
   const tone = pct >= 80 ? "bg-green-100 text-green-700" : pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
@@ -85,6 +56,185 @@ function UnitBadge({ unit }: { unit?: string }) {
   return <span className={`inline-block rounded-full px-1.5 py-0.5 text-[11px] font-medium truncate max-w-full ${unitColor(unit)}`}>{unit}</span>;
 }
 
+// Rincian transaksi realisasi (banyak baris per Sub-Kegiatan per tahun) — jumlahnya
+// disinkronkan server ke total Realisasi yang tampil di baris ringkasan.
+function TransactionDetailModal({
+  activity,
+  year,
+  onClose,
+  onChanged,
+}: {
+  activity: { id: string; name: string };
+  year: number;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch(`/api/transactions?activityId=${activity.id}&year=${year}`);
+    const data = await res.json();
+    setTransactions(Array.isArray(data) ? data : []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const total = transactions.reduce((s, t) => s + Number(t.amount), 0);
+
+  function resetForm() {
+    setEditingId(null);
+    setDate(new Date().toISOString().slice(0, 10));
+    setDescription("");
+    setAmount("");
+    setError("");
+  }
+
+  function startEdit(t: any) {
+    setEditingId(t.id);
+    setDate(new Date(t.date).toISOString().slice(0, 10));
+    setDescription(t.description);
+    setAmount(String(Math.round(Number(t.amount))));
+    setError("");
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const payload = { activityId: activity.id, year, date, description, amount: Number(amount || 0) };
+
+    const res = editingId
+      ? await fetch(`/api/transactions/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      : await fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || "Gagal menyimpan transaksi.");
+      return;
+    }
+
+    resetForm();
+    load();
+    onChanged();
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Hapus transaksi ini?")) return;
+    const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Gagal menghapus transaksi. Hanya ADMIN yang boleh menghapus.");
+      return;
+    }
+    load();
+    onChanged();
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Detail Transaksi — ${activity.name} (${year})`}>
+      <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-2 border-b border-slate-100 pb-4">
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+              {error}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Tanggal</label>
+              <input
+                required
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Nominal (boleh minus untuk koreksi/retur)</label>
+              <input
+                required
+                type="text"
+                inputMode="numeric"
+                value={formatThousands(amount)}
+                onChange={(e) => setAmount(stripThousands(e.target.value))}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 text-right"
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Keterangan</label>
+            <input
+              required
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              placeholder="mis. Pembayaran tiket batch 1"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            {editingId && (
+              <button type="button" onClick={resetForm} className="text-sm text-slate-500 px-3 py-2">Batal Ubah</button>
+            )}
+            <button type="submit" className="bg-[#6C5CE7] hover:bg-[#5842d6] text-white text-sm font-medium rounded-xl px-4 py-2">
+              {editingId ? "Simpan Perubahan" : "+ Tambah Transaksi"}
+            </button>
+          </div>
+        </form>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-slate-500">Rincian Transaksi</span>
+            <span className="text-sm font-semibold text-slate-800">Total: {rupiah(total)}</span>
+          </div>
+          {loading ? (
+            <p className="text-sm text-slate-500">Memuat...</p>
+          ) : transactions.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">Belum ada transaksi.</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto space-y-1.5">
+              {transactions.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-2 border border-slate-100 rounded-xl px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-800 truncate">{t.description}</p>
+                    <p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString("id-ID")}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-sm font-medium ${Number(t.amount) < 0 ? "text-red-600" : "text-slate-700"}`}>
+                      {rupiah(Number(t.amount))}
+                    </span>
+                    <button onClick={() => startEdit(t)} className="text-xs text-[#6C5CE7] hover:underline">Ubah</button>
+                    <button onClick={() => handleDelete(t.id)} className="text-xs text-red-600 hover:underline">Hapus</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // Dibungkus Suspense karena useSearchParams() mewajibkannya untuk halaman yang di-prerender statis.
 export default function EntriesPage() {
   return (
@@ -110,6 +260,7 @@ function EntriesPageInner() {
   const [filterStatus, setFilterStatus] = useState<"" | "ON_PROGRESS" | "DONE">("");
   const [filterUnit, setFilterUnit] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [detailActivity, setDetailActivity] = useState<{ id: string; name: string } | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   async function loadCategories() {
@@ -256,7 +407,7 @@ function EntriesPageInner() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Input Realisasi</h1>
-          <p className="text-sm text-slate-500">1 baris transaksi per Sub-Kegiatan per tahun · Pagu mengikuti RKAP · Tersimpan otomatis · Klik judul Pos Anggaran (+) untuk buka/tutup</p>
+          <p className="text-sm text-slate-500">Realisasi dihitung otomatis dari Detail Transaksi · Pagu mengikuti RKAP · Status &amp; Catatan tersimpan otomatis · Klik judul Pos Anggaran (+) untuk buka/tutup</p>
         </div>
         <div className="flex gap-3">
           <div>
@@ -369,6 +520,12 @@ function EntriesPageInner() {
                           >
                             <td className="px-2 py-1.5 text-slate-700 align-top">
                               <span className="line-clamp-2 text-xs" title={act.name}>{act.name}</span>
+                              <button
+                                onClick={() => setDetailActivity({ id: act.id, name: act.name })}
+                                className="block text-[10px] text-[#6C5CE7] hover:underline mt-0.5"
+                              >
+                                Detail Transaksi
+                              </button>
                             </td>
                             <td className="px-2 py-1.5 align-top">
                               <UnitBadge unit={act.pic} />
@@ -376,12 +533,13 @@ function EntriesPageInner() {
                             <td className="px-2 py-1.5 align-top">
                               <span className="block text-center text-slate-500 text-xs py-1.5 truncate" title={rupiah(rkap)}>{rupiah(rkap)}</span>
                             </td>
-                            <td className="px-2 py-1.5">
-                              <NumberInput
-                                value={row.realisasi}
-                                onChange={(raw) => updateRow(act.id, { realisasi: raw })}
-                                onCommit={() => saveRow(act.id)}
-                              />
+                            <td className="px-2 py-1.5 align-top">
+                              <span
+                                className={`block text-center text-xs font-medium py-1.5 truncate ${realisasi < 0 ? "text-red-600" : "text-slate-800"}`}
+                                title={rupiah(realisasi)}
+                              >
+                                {rupiah(realisasi)}
+                              </span>
                             </td>
                             <td className="px-2 py-1.5 text-center">
                               <MiniPctBadge pct={pct} />
@@ -437,6 +595,15 @@ function EntriesPageInner() {
             </div>
           )}
         </div>
+      )}
+
+      {detailActivity && (
+        <TransactionDetailModal
+          activity={detailActivity}
+          year={year}
+          onClose={() => setDetailActivity(null)}
+          onChanged={loadCategories}
+        />
       )}
     </div>
   );
