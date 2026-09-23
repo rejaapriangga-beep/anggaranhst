@@ -37,6 +37,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "name dan year wajib diisi" }, { status: 400 });
   }
 
+  const existing = await prisma.budgetCategory.findUnique({
+    where: { name_year: { name, year: Number(year) } },
+  });
+  if (existing) {
+    return NextResponse.json(
+      { error: `Pos Anggaran "${name}" untuk tahun ${year} sudah ada.` },
+      { status: 409 }
+    );
+  }
+
   const category = await prisma.budgetCategory.create({
     data: { name, code, year: Number(year) },
   });
