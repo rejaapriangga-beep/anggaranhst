@@ -629,7 +629,7 @@ function EntriesPageInner() {
                                 onClick={() => setDetailActivity({ id: act.id, name: act.name })}
                                 className="block text-[10px] text-[#6C5CE7] hover:underline mt-0.5"
                               >
-                                Detail Transaksi
+                                Detail Transaksi{act._count?.transactions ? ` (${act._count.transactions})` : ""}
                               </button>
                             </td>
                             <td className="px-2 py-1.5 align-top">
