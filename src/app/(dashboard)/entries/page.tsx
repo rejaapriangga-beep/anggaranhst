@@ -320,6 +320,107 @@ function AddActivityModal({
   );
 }
 
+// Ubah/hapus Sub-Kegiatan langsung dari halaman ini (ikon pensil di tiap baris),
+// tanpa pindah ke halaman Sub-Kegiatan.
+function EditActivityModal({
+  activity,
+  onClose,
+  onSaved,
+}: {
+  activity: { id: string; name: string; pic?: string | null; totalPagu: number | string };
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(activity.name);
+  const [pic, setPic] = useState(activity.pic ?? "");
+  const [totalPagu, setTotalPagu] = useState(String(Math.round(Number(activity.totalPagu))));
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const res = await fetch(`/api/activities/${activity.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, pic, totalPagu: Number(totalPagu || 0) }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || "Gagal menyimpan perubahan.");
+      return;
+    }
+
+    onSaved();
+    onClose();
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Hapus Sub-Kegiatan "${activity.name}" beserta seluruh data realisasinya?`)) return;
+    const res = await fetch(`/api/activities/${activity.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Gagal menghapus Sub-Kegiatan. Hanya ADMIN yang boleh menghapus.");
+      return;
+    }
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Ubah Sub-Kegiatan">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {error && (
+          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            {error}
+          </div>
+        )}
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Nama Sub-Kegiatan/Proyek</label>
+          <input
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Unit</label>
+          <select value={pic} onChange={(e) => setPic(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white">
+            <option value="">Pilih...</option>
+            {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Total Pagu / RKAP (Rp)</label>
+          <input
+            required
+            type="text"
+            inputMode="numeric"
+            value={formatThousands(totalPagu)}
+            onChange={(e) => setTotalPagu(stripThousands(e.target.value))}
+            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 text-right"
+            placeholder="0"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2 pt-2">
+          <button type="button" onClick={handleDelete} className="text-sm text-red-600 hover:underline px-1 py-2">
+            Hapus Sub-Kegiatan
+          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onClose} className="text-sm text-slate-500 px-3 py-2">Batal</button>
+            <button type="submit" className="bg-[#6C5CE7] hover:bg-[#5842d6] text-white text-sm font-medium rounded-xl px-4 py-2">
+              Simpan
+            </button>
+          </div>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // Dibungkus Suspense karena useSearchParams() mewajibkannya untuk halaman yang di-prerender statis.
 export default function EntriesPage() {
   return (
@@ -347,6 +448,7 @@ function EntriesPageInner() {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [detailActivity, setDetailActivity] = useState<{ id: string; name: string } | null>(null);
   const [addToCategory, setAddToCategory] = useState<{ id: string; name: string } | null>(null);
+  const [editActivity, setEditActivity] = useState<any | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   async function loadCategories() {
@@ -624,7 +726,18 @@ function EntriesPageInner() {
                             }`}
                           >
                             <td className="px-2 py-1.5 text-slate-700 align-top">
-                              <span className="line-clamp-2 text-xs" title={act.name}>{act.name}</span>
+                              <div className="flex items-start justify-between gap-1">
+                                <span className="line-clamp-2 text-xs" title={act.name}>{act.name}</span>
+                                <button
+                                  onClick={() => setEditActivity(act)}
+                                  title="Ubah Sub-Kegiatan"
+                                  className="shrink-0 text-slate-400 hover:text-[#6C5CE7] p-0.5"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                  </svg>
+                                </button>
+                              </div>
                               <button
                                 onClick={() => setDetailActivity({ id: act.id, name: act.name })}
                                 className="block text-[10px] text-[#6C5CE7] hover:underline mt-0.5"
@@ -716,6 +829,14 @@ function EntriesPageInner() {
           category={addToCategory}
           onClose={() => setAddToCategory(null)}
           onAdded={loadCategories}
+        />
+      )}
+
+      {editActivity && (
+        <EditActivityModal
+          activity={editActivity}
+          onClose={() => setEditActivity(null)}
+          onSaved={loadCategories}
         />
       )}
     </div>
