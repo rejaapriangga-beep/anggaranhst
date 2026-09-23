@@ -15,7 +15,10 @@ export async function GET(req: Request) {
     where: year ? { year: Number(year) } : undefined,
     include: {
       activities: {
-        include: { entries: true },
+        include: {
+          entries: true,
+          _count: { select: { transactions: true } },
+        },
       },
     },
     orderBy: { name: "asc" },
