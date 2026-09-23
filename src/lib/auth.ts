@@ -38,6 +38,16 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = (user as any).id;
         token.role = (user as any).role;
+      } else if (token.id) {
+        // Ambil ulang role dari database tiap sesi dicek (bukan cuma sekali
+        // saat login) -- supaya kalau ADMIN mengubah role seseorang lewat
+        // Kelola User, perubahannya langsung berlaku tanpa user itu perlu
+        // logout/login manual dulu.
+        const current = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true },
+        });
+        if (current) token.role = current.role;
       }
       return token;
     },
