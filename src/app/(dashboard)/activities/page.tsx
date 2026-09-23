@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import { formatThousands, stripThousands } from "@/lib/format";
+import { UNITS } from "@/lib/constants";
 
 const rupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
@@ -247,10 +248,7 @@ export default function ActivitiesPage() {
             <label className="block text-xs text-slate-500 mb-1">Unit</label>
             <select value={pic} onChange={(e) => setPic(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white">
               <option value="">Pilih...</option>
-              <option value="HSTA">HSTA</option>
-              <option value="HSTC">HSTC</option>
-              <option value="HSTD">HSTD</option>
-              <option value="HST.1">HST.1</option>
+              {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
           <div>

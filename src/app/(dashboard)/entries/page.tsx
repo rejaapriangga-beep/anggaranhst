@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatThousands, stripThousands } from "@/lib/format";
+import { UNITS } from "@/lib/constants";
 import Modal from "@/components/Modal";
 
 const rupiah = (n: number) =>
@@ -235,6 +236,90 @@ function TransactionDetailModal({
   );
 }
 
+// Tambah Sub-Kegiatan langsung dari header Pos Anggaran di halaman ini, tanpa
+// pindah ke halaman Sub-Kegiatan. categoryId sudah pasti (dari Pos Anggaran yang diklik).
+function AddActivityModal({
+  category,
+  onClose,
+  onAdded,
+}: {
+  category: { id: string; name: string };
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [pic, setPic] = useState("");
+  const [totalPagu, setTotalPagu] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const res = await fetch("/api/activities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, pic, totalPagu: Number(totalPagu || 0), categoryId: category.id }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || "Gagal menambah Sub-Kegiatan.");
+      return;
+    }
+
+    onAdded();
+    onClose();
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Tambah Sub-Kegiatan — ${category.name}`}>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {error && (
+          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+            {error}
+          </div>
+        )}
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Nama Sub-Kegiatan/Proyek</label>
+          <input
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Unit</label>
+          <select value={pic} onChange={(e) => setPic(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white">
+            <option value="">Pilih...</option>
+            {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Total Pagu / RKAP (Rp)</label>
+          <input
+            required
+            type="text"
+            inputMode="numeric"
+            value={formatThousands(totalPagu)}
+            onChange={(e) => setTotalPagu(stripThousands(e.target.value))}
+            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800 text-right"
+            placeholder="0"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="text-sm text-slate-500 px-3 py-2">Batal</button>
+          <button type="submit" className="bg-[#6C5CE7] hover:bg-[#5842d6] text-white text-sm font-medium rounded-xl px-4 py-2">
+            Tambah
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // Dibungkus Suspense karena useSearchParams() mewajibkannya untuk halaman yang di-prerender statis.
 export default function EntriesPage() {
   return (
@@ -261,6 +346,7 @@ function EntriesPageInner() {
   const [filterUnit, setFilterUnit] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [detailActivity, setDetailActivity] = useState<{ id: string; name: string } | null>(null);
+  const [addToCategory, setAddToCategory] = useState<{ id: string; name: string } | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   async function loadCategories() {
@@ -452,10 +538,18 @@ function EntriesPageInner() {
 
             return (
               <div key={cat.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleExpand(cat.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleExpand(cat.id);
+                    }
+                  }}
                   title={expanded ? "Klik untuk tutup detail" : "Klik untuk buka detail sub-kegiatan"}
-                  className="w-full flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 bg-[#1e1b3a] hover:bg-[#2a2650] transition-colors text-left"
+                  className="w-full flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 bg-[#1e1b3a] hover:bg-[#2a2650] transition-colors text-left cursor-pointer"
                 >
                   <span className="flex items-center gap-2 font-semibold text-white text-sm">
                     <span
@@ -470,13 +564,24 @@ function EntriesPageInner() {
                     {cat.name}
                     <span className="text-xs font-normal text-slate-300">({summary.done}/{summary.total} selesai)</span>
                   </span>
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-300">
-                    <span>RKAP: <span className="font-medium text-white">{rupiah(summary.pagu)}</span></span>
-                    <span>Realisasi: <span className="font-medium text-green-400">{rupiah(summary.realisasi)}</span></span>
-                    <span>% Serap: <span className="font-medium text-white">{summaryPct.toFixed(1)}%</span></span>
-                    <span>Sisa: <span className="font-medium text-amber-300">{rupiah(summarySisa)}</span></span>
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-300">
+                      <span>RKAP: <span className="font-medium text-white">{rupiah(summary.pagu)}</span></span>
+                      <span>Realisasi: <span className="font-medium text-green-400">{rupiah(summary.realisasi)}</span></span>
+                      <span>% Serap: <span className="font-medium text-white">{summaryPct.toFixed(1)}%</span></span>
+                      <span>Sisa: <span className="font-medium text-amber-300">{rupiah(summarySisa)}</span></span>
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAddToCategory({ id: cat.id, name: cat.name });
+                      }}
+                      className="shrink-0 text-xs font-medium bg-white/10 hover:bg-white/20 text-white rounded-lg px-2.5 py-1.5"
+                    >
+                      + Tambah Sub-Kegiatan
+                    </button>
                   </span>
-                </button>
+                </div>
 
                 {expanded && (
                   <table className="w-full table-fixed text-sm">
@@ -603,6 +708,14 @@ function EntriesPageInner() {
           year={year}
           onClose={() => setDetailActivity(null)}
           onChanged={loadCategories}
+        />
+      )}
+
+      {addToCategory && (
+        <AddActivityModal
+          category={addToCategory}
+          onClose={() => setAddToCategory(null)}
+          onAdded={loadCategories}
         />
       )}
     </div>
