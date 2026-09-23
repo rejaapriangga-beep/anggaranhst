@@ -11,6 +11,7 @@ export default function CategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [filterYear, setFilterYear] = useState<number | "">(new Date().getFullYear());
+  const [error, setError] = useState("");
 
   const availableYears = useMemo(() => {
     const years = new Set(categories.map((c) => c.year));
@@ -46,6 +47,7 @@ export default function CategoriesPage() {
     setCode("");
     setYear(new Date().getFullYear());
     setEditingId(null);
+    setError("");
   }
 
   function openAdd() {
@@ -68,20 +70,25 @@ export default function CategoriesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     const payload = { name, code, year };
 
-    if (editingId) {
-      await fetch(`/api/categories/${editingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    const res = editingId
+      ? await fetch(`/api/categories/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      : await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || "Gagal menyimpan Pos Anggaran.");
+      return;
     }
 
     closeModal();
@@ -90,7 +97,12 @@ export default function CategoriesPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Hapus pos anggaran ini beserta seluruh sub-kegiatan & realisasinya?")) return;
-    await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Gagal menghapus Pos Anggaran. Hanya ADMIN yang boleh menghapus.");
+      return;
+    }
     load();
   }
 
@@ -149,6 +161,11 @@ export default function CategoriesPage() {
 
       <Modal open={modalOpen} onClose={closeModal} title={editingId ? "Ubah Pos Anggaran" : "Tambah Pos Anggaran"}>
         <form onSubmit={handleSubmit} className="space-y-3">
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-xs text-slate-500 mb-1">Kode</label>
             <input value={code} onChange={(e) => setCode(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800" />

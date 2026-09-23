@@ -12,6 +12,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const body = await req.json();
+
+  if (body.name && body.year) {
+    const existing = await prisma.budgetCategory.findUnique({
+      where: { name_year: { name: body.name, year: Number(body.year) } },
+    });
+    if (existing && existing.id !== id) {
+      return NextResponse.json(
+        { error: `Pos Anggaran "${body.name}" untuk tahun ${body.year} sudah ada.` },
+        { status: 409 }
+      );
+    }
+  }
+
   const category = await prisma.budgetCategory.update({
     where: { id },
     data: {

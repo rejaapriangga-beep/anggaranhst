@@ -2,16 +2,10 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { formatThousands, stripThousands } from "@/lib/format";
 
 const rupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
-
-const formatThousands = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "";
-  return new Intl.NumberFormat("id-ID").format(Number(digits));
-};
-const stripThousands = (value: string) => value.replace(/\D/g, "");
 
 type RowState = {
   hasEntry: boolean;
@@ -183,7 +177,7 @@ function EntriesPageInner() {
     if (!row || !row.dirty || row.saving) return;
     setRowState((prev) => ({ ...prev, [activityId]: { ...prev[activityId], saving: true } }));
 
-    await fetch("/api/entries/yearly", {
+    const res = await fetch("/api/entries/yearly", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -196,6 +190,13 @@ function EntriesPageInner() {
         note: row.note,
       }),
     });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Gagal menyimpan. Perubahan Anda TIDAK tersimpan.");
+      setRowState((prev) => ({ ...prev, [activityId]: { ...prev[activityId], saving: false } }));
+      return;
+    }
 
     setRowState((prev) => ({
       ...prev,

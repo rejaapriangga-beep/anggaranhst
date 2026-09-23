@@ -2,17 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
+import { formatThousands, stripThousands } from "@/lib/format";
 
 const rupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
-
-// Format angka dengan pemisah ribuan titik untuk tampilan di input, contoh: 5000000 -> "5.000.000"
-const formatThousands = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "";
-  return new Intl.NumberFormat("id-ID").format(Number(digits));
-};
-const stripThousands = (value: string) => value.replace(/\D/g, "");
 
 export default function ActivitiesPage() {
   const [activities, setActivities] = useState<any[]>([]);
@@ -25,6 +18,7 @@ export default function ActivitiesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [filterYear, setFilterYear] = useState<number | "">(new Date().getFullYear());
+  const [error, setError] = useState("");
 
   const availableYears = useMemo(() => {
     const years = new Set(categories.map((c) => c.year));
@@ -50,6 +44,7 @@ export default function ActivitiesPage() {
     setTotalPagu("");
     setCategoryId("");
     setEditingId(null);
+    setError("");
   }
 
   function openAdd() {
@@ -64,20 +59,25 @@ export default function ActivitiesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     const payload = { name, pic, totalPagu: Number(totalPagu), categoryId };
 
-    if (editingId) {
-      await fetch(`/api/activities/${editingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/activities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    const res = editingId
+      ? await fetch(`/api/activities/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      : await fetch("/api/activities", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || "Gagal menyimpan Sub-Kegiatan.");
+      return;
     }
 
     closeModal();
@@ -86,7 +86,12 @@ export default function ActivitiesPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Hapus sub-kegiatan ini beserta seluruh data realisasinya?")) return;
-    await fetch(`/api/activities/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/activities/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Gagal menghapus Sub-Kegiatan. Hanya ADMIN yang boleh menghapus.");
+      return;
+    }
     load();
   }
 
@@ -222,6 +227,11 @@ export default function ActivitiesPage() {
 
       <Modal open={modalOpen} onClose={closeModal} title={editingId ? "Ubah Sub-Kegiatan" : "Tambah Sub-Kegiatan"}>
         <form onSubmit={handleSubmit} className="space-y-3">
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-xs text-slate-500 mb-1">Pos Anggaran</label>
             <select required value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800">
