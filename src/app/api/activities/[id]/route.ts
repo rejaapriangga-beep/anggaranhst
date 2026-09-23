@@ -38,6 +38,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const transactionCount = await prisma.transaction.count({ where: { activityId: id } });
+  if (transactionCount > 0) {
+    return NextResponse.json(
+      {
+        error: `Sub-Kegiatan ini masih punya ${transactionCount} transaksi realisasi. Hapus dulu semua transaksinya lewat "Detail Transaksi" sebelum menghapus Sub-Kegiatan ini.`,
+      },
+      { status: 409 }
+    );
+  }
+
   const activity = await prisma.budgetActivity.delete({ where: { id } });
 
   await logAudit({

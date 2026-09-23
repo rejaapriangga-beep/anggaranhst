@@ -357,7 +357,7 @@ function EditActivityModal({
   }
 
   async function handleDelete() {
-    if (!confirm(`Hapus Sub-Kegiatan "${activity.name}" beserta seluruh data realisasinya?`)) return;
+    if (!confirm(`Hapus Sub-Kegiatan "${activity.name}"?\n\nKalau Sub-Kegiatan ini masih punya Detail Transaksi, hapus dulu semua transaksinya sebelum bisa menghapus Sub-Kegiatan ini.`)) return;
     const res = await fetch(`/api/activities/${activity.id}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
