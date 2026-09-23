@@ -86,7 +86,7 @@ export default function ActivitiesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Hapus sub-kegiatan ini beserta seluruh data realisasinya?")) return;
+    if (!confirm('Hapus sub-kegiatan ini?\n\nKalau masih punya Detail Transaksi, hapus dulu semua transaksinya (di halaman Input Realisasi) sebelum bisa menghapus Sub-Kegiatan ini.')) return;
     const res = await fetch(`/api/activities/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
