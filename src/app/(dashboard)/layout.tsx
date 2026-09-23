@@ -11,7 +11,10 @@ import WelcomeTutorial from "@/components/WelcomeTutorial";
 const NAV = [
   { href: "/reports", label: "Dashboard", icon: "📊" },
   { href: "/categories", label: "Pos Anggaran", icon: "🗂️" },
-  { href: "/activities", label: "Sub-Kegiatan", icon: "📌" },
+  // Disembunyikan sementara dari menu -- Tambah/Ubah/Hapus Sub-Kegiatan sekarang
+  // sudah bisa dilakukan langsung dari halaman Input Realisasi. Halaman & route-nya
+  // masih ada (belum dihapus), tinggal hapus baris "hidden: true" ini untuk memunculkannya lagi.
+  { href: "/activities", label: "Sub-Kegiatan", icon: "📌", hidden: true },
   { href: "/entries", label: "Input Realisasi", icon: "✏️" },
   { href: "/users", label: "Kelola User", icon: "👥", adminOnly: true },
   { href: "/logs", label: "Log Aktivitas", icon: "🕒", adminOnly: true },
@@ -23,7 +26,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const visibleNav = NAV.filter((item) => !item.adminOnly || (session?.user as any)?.role === "ADMIN");
+  const visibleNav = NAV.filter((item) => !item.hidden && (!item.adminOnly || (session?.user as any)?.role === "ADMIN"));
   const initials = (session?.user?.name || session?.user?.email || "U").slice(0, 1).toUpperCase();
 
   function closeMobile() {
